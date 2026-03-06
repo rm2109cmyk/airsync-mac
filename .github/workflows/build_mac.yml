@@ -1,0 +1,43 @@
+name: Build AirSync Mac (Plus)
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Build App
+        run: |
+          # 1. Find the project or workspace
+          FILE=$(ls -d *.xcworkspace 2>/dev/null || ls -d *.xcodeproj 2>/dev/null)
+          TYPE=$([[ $FILE == *.xcworkspace ]] && echo "-workspace" || echo "-project")
+          
+          echo "Building $FILE using $TYPE..."
+
+          # 2. Run the build with every 'bypass' flag possible
+          xcodebuild $TYPE "$FILE" \
+            -scheme "AirSync Self Compiled" \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGN_IDENTITY="" \
+            -destination 'platform=macOS'
+
+      - name: Archive App
+        run: |
+          # 3. Find where the Mac hid the .app and zip it
+          APP_PATH=$(find build -name "AirSync.app" -type d | head -n 1)
+          if [ -z "$APP_PATH" ]; then echo "App not found!"; exit 1; fi
+          
+          cd "$(dirname "$APP_PATH")"
+          zip -r ../../../AirSync-Mac-Plus.zip AirSync.app
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AirSync-Mac-Plus
+          path: AirSync-Mac-Plus.zip
