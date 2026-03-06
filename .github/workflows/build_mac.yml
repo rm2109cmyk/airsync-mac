@@ -3,30 +3,31 @@ on: [workflow_dispatch]
 
 jobs:
   build:
-    # Changed from macos-14 to macos-latest to get Xcode 26+
-    runs-on: macos-latest 
+    runs-on: macos-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Build App
+      - name: Build App (Main Scheme Hijack)
         run: |
-          # 1. Find the project file
           FILE=$(ls -d *.xcodeproj 2>/dev/null | head -n 1)
           
-          # 2. Build with "Self Compiled" scheme and skip all code signing
+          # Notice we changed the scheme to "AirSync" 
+          # We added OTHER_SWIFT_FLAGS to manually trigger the Plus unlock
           xcodebuild -project "$FILE" \
-            -scheme "AirSync Self Compiled" \
+            -scheme "AirSync" \
             -configuration Release \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            CODE_SIGN_IDENTITY=""
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            OTHER_SWIFT_FLAGS="-D SELF_COMPILED" \
+            -destination 'platform=macOS'
 
       - name: Zip App
         run: |
-          # Find where the app ended up and zip it
           APP_PATH=$(find build -name "AirSync.app" -type d | head -n 1)
           cd "$(dirname "$APP_PATH")"
           zip -r ../../../AirSync-Mac-Plus.zip AirSync.app
