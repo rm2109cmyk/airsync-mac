@@ -1,36 +1,37 @@
 name: Build AirSync Mac (Plus)
-on: [workflow_dispatch, push]
+on: [workflow_dispatch]
 
 jobs:
   build:
-    runs-on: macos-14
+    # Changed from macos-14 to macos-latest to get Xcode 26+
+    runs-on: macos-latest 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
       - name: Build App
         run: |
-          # 1. Force the Mac to find the project
-          FILE=$(ls -d *.xcworkspace 2>/dev/null || ls -d *.xcodeproj 2>/dev/null)
-          TYPE=$([[ $FILE == *.xcworkspace ]] && echo "-workspace" || echo "-project")
+          # 1. Find the project file
+          FILE=$(ls -d *.xcodeproj 2>/dev/null | head -n 1)
           
-          # 2. Build with "Plus" features unlocked and security checks disabled
-          xcodebuild $TYPE "$FILE" \
+          # 2. Build with "Self Compiled" scheme and skip all code signing
+          xcodebuild -project "$FILE" \
             -scheme "AirSync Self Compiled" \
             -configuration Release \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGN_IDENTITY=""
 
-      - name: Find and Zip App
+      - name: Zip App
         run: |
-          # Find the app wherever it was built and zip it up
+          # Find where the app ended up and zip it
           APP_PATH=$(find build -name "AirSync.app" -type d | head -n 1)
           cd "$(dirname "$APP_PATH")"
           zip -r ../../../AirSync-Mac-Plus.zip AirSync.app
 
-      - name: Upload Finished App
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: AirSync-Mac-Plus
