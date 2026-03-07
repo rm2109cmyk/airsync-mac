@@ -49,6 +49,7 @@ jobs:
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
               CODE_SIGN_IDENTITY="" \
+              ASSETCATALOG_COMPILER_SKIP_APP_STORE_DEPLOYMENT=YES \
               build
           else
             echo "Using project: $PROJECT"
@@ -61,6 +62,7 @@ jobs:
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
               CODE_SIGN_IDENTITY="" \
+              ASSETCATALOG_COMPILER_SKIP_APP_STORE_DEPLOYMENT=YES \
               build
           fi
 
