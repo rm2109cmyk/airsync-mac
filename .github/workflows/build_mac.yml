@@ -35,9 +35,13 @@ jobs:
 
       - name: Build App
         run: |
-          if [ "${{ steps.detect.outputs.type }}" = "workspace" ]; then
+          WORKSPACE=$(find . -name "*.xcworkspace" | head -n 1)
+          PROJECT=$(find . -name "*.xcodeproj" | head -n 1)
+      
+          if [ -n "$WORKSPACE" ]; then
+            echo "Using workspace: $WORKSPACE"
             xcodebuild \
-              -workspace "${{ steps.detect.outputs.file }}" \
+              -workspace "$WORKSPACE" \
               -scheme "AirSync Self Compiled" \
               -configuration Release \
               -derivedDataPath build \
@@ -47,8 +51,9 @@ jobs:
               CODE_SIGN_IDENTITY="" \
               build
           else
+            echo "Using project: $PROJECT"
             xcodebuild \
-              -project "${{ steps.detect.outputs.file }}" \
+              -project "$PROJECT" \
               -scheme "AirSync Self Compiled" \
               -configuration Release \
               -derivedDataPath build \
