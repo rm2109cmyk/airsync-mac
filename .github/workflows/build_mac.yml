@@ -7,43 +7,47 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # This tells GitHub to download the whole history
+
+      - name: Rollback to Stable Version
+        run: |
+          # Find the last official release tag and rewind the code to that point
+          LATEST_TAG=$(git describe --tags --abbrev=0)
+          echo "Rewinding code to stable release: $LATEST_TAG"
+          git checkout $LATEST_TAG
 
       - name: Resolve Dependencies
         run: xcodebuild -resolvePackageDependencies
 
       - name: Build App
         run: |
-          # 1. We use the correct scheme name found in your project
-          xcodebuild -project AirSync.xcodeproj \
+          FILE=$(ls -d *.xcodeproj 2>/dev/null | head -n 1)
+          
+          xcodebuild -project "$FILE" \
             -scheme "AirSync Self Compiled" \
             -configuration Release \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            AD_HOC_CODE_SIGN_ALLOWED=YES \
             CODE_SIGN_IDENTITY="" \
-            OTHER_SWIFT_FLAGS="-D SELF_COMPILED" \
             -destination 'platform=macOS'
 
       - name: Bundle and Zip
         run: |
-          # 2. Find the app and zip it up
-          APP_PATH=$(find build/Build/Products/Release -name "AirSync.app" -type d | head -n 1)
-          if [ -z "$APP_PATH" ]; then
-            echo "App not found in standard path, searching everywhere..."
-            APP_PATH=$(find build -name "AirSync.app" -type d | head -n 1)
-          fi
+          APP_PATH=$(find build -name "AirSync.app" -type d | head -n 1)
           
           if [ -n "$APP_PATH" ]; then
             cd "$(dirname "$APP_PATH")"
-            zip -r ../../../AirSync-Mac-Plus-Update.zip AirSync.app
+            zip -r ../../../AirSync-Mac-Plus.zip AirSync.app
           else
-            echo "Build failed - .app file was never created."
+            echo "Build failed."
             exit 1
           fi
 
       - name: Upload Finished App
         uses: actions/upload-artifact@v4
         with:
-          name: AirSync-Mac-Plus-Update
-          path: AirSync-Mac-Plus-Update.zip
+          name: AirSync-Mac-Plus
+          path: AirSync-Mac-Plus.zip
