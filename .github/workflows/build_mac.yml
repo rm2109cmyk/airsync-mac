@@ -3,12 +3,15 @@ name: Build AirSync Mac
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-26
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Select Xcode
@@ -25,7 +28,7 @@ jobs:
             echo "file=$(ls *.xcodeproj | head -n 1)" >> $GITHUB_OUTPUT
           fi
 
-      - name: Resolve Dependencies
+      - name: Resolve Swift Packages
         run: xcodebuild -resolvePackageDependencies
 
       - name: Build App
@@ -52,7 +55,7 @@ jobs:
               build
           fi
 
-      - name: Find App
+      - name: Find built app
         run: |
           APP_PATH=$(find build -name "AirSync.app" -type d | head -n 1)
           echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
@@ -63,8 +66,9 @@ jobs:
           zip -r AirSync-Mac.zip AirSync.app
           mv AirSync-Mac.zip $GITHUB_WORKSPACE
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: AirSync-Mac
-          path: AirSync-Mac.zip
+          tag_name: auto-build
+          name: AirSync Auto Build
+          files: AirSync-Mac.zip
