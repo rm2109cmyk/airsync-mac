@@ -7,15 +7,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # This tells GitHub to download the whole history
-
-      - name: Rollback to Stable Version
-        run: |
-          # Find the last official release tag and rewind the code to that point
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Rewinding code to stable release: $LATEST_TAG"
-          git checkout $LATEST_TAG
 
       - name: Resolve Dependencies
         run: xcodebuild -resolvePackageDependencies
@@ -23,7 +14,7 @@ jobs:
       - name: Build App
         run: |
           FILE=$(ls -d *.xcodeproj 2>/dev/null | head -n 1)
-          
+
           xcodebuild -project "$FILE" \
             -scheme "AirSync Self Compiled" \
             -configuration Release \
@@ -37,7 +28,7 @@ jobs:
       - name: Bundle and Zip
         run: |
           APP_PATH=$(find build -name "AirSync.app" -type d | head -n 1)
-          
+
           if [ -n "$APP_PATH" ]; then
             cd "$(dirname "$APP_PATH")"
             zip -r ../../../AirSync-Mac-Plus.zip AirSync.app
@@ -51,3 +42,4 @@ jobs:
         with:
           name: AirSync-Mac-Plus
           path: AirSync-Mac-Plus.zip
+        
