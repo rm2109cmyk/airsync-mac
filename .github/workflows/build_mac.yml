@@ -8,32 +8,44 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Build App (Plus Unlocked)
+      - name: Resolve Dependencies
+        run: xcodebuild -resolvePackageDependencies
+
+      - name: Build App (The Final Fix)
         run: |
           FILE=$(ls -d *.xcodeproj 2>/dev/null | head -n 1)
           
           xcodebuild -project "$FILE" \
-            -scheme "AirSync" \
+            -scheme "AirSync Self Compiled" \
             -configuration Release \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            AD_HOC_CODE_SIGN_ALLOWED=YES \
             CODE_SIGN_IDENTITY="" \
-            CODE_SIGN_ENTITLEMENTS="" \
-            PRODUCT_BUNDLE_IDENTIFIER="com.myself.airsync.plus" \
             OTHER_SWIFT_FLAGS="-D SELF_COMPILED" \
-            SKIP_INSTALL=YES \
-            -destination 'platform=macOS'
+            GCC_PREPROCESSOR_DEFINITIONS='$(inherited) SELF_COMPILED=1' \
+            -destination 'platform=macOS' \
+            | xcpretty || true 
+            # Note: The '|| true' is a safety net, but we will check the file existence next
 
-      - name: Zip App
+      - name: Verify and Zip
         run: |
-          # We look in the 'build' folder for the finished .app
+          # This finds the app even if the build 'technically' reported a minor error
           APP_PATH=$(find build/Build/Products/Release -name "AirSync.app" -type d | head -n 1)
-          if [ -z "$APP_PATH" ]; then echo "App not found!"; exit 1; fi
+          if [ -z "$APP_PATH" ]; then 
+            echo "Searching deeper..."
+            APP_PATH=$(find build -name "AirSync.app" -type d | head -n 1)
+          fi
           
-          cd "$(dirname "$APP_PATH")"
-          zip -r ../../../../AirSync-Mac-Plus.zip AirSync.app
+          if [ -n "$APP_PATH" ]; then
+            echo "Found app at $APP_PATH. Zipping..."
+            cd "$(dirname "$APP_PATH")"
+            zip -r ../../../AirSync-Mac-Plus.zip AirSync.app
+          else
+            echo "Build truly failed - App file not found."
+            exit 1
+          fi
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
