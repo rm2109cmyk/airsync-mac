@@ -1,85 +1,50 @@
-name: Build AirSync Mac
+name: Build AirSync
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-14
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Latest Xcode
+      - name: Select Xcode 15
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: latest
-
-      - name: Detect Project or Workspace
-        id: detect
-        run: |
-          if ls *.xcworkspace 1> /dev/null 2>&1; then
-            echo "type=workspace" >> $GITHUB_OUTPUT
-            echo "file=$(ls *.xcworkspace | head -n 1)" >> $GITHUB_OUTPUT
-          else
-            echo "type=project" >> $GITHUB_OUTPUT
-            echo "file=$(ls *.xcodeproj | head -n 1)" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Resolve Swift Packages
-        run: xcodebuild -resolvePackageDependencies
+          xcode-version: "15.4"
 
       - name: Build App
         run: |
           WORKSPACE=$(find . -name "*.xcworkspace" | head -n 1)
           PROJECT=$(find . -name "*.xcodeproj" | head -n 1)
-      
+
           if [ -n "$WORKSPACE" ]; then
-            echo "Using workspace: $WORKSPACE"
+            echo "Building workspace: $WORKSPACE"
             xcodebuild \
               -workspace "$WORKSPACE" \
               -scheme "AirSync Self Compiled" \
               -configuration Release \
               -derivedDataPath build \
-              MACOSX_DEPLOYMENT_TARGET=15.0 \
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGN_IDENTITY="" \
-              ASSETCATALOG_COMPILER_SKIP_APP_STORE_DEPLOYMENT=YES \
               build
           else
-            echo "Using project: $PROJECT"
+            echo "Building project: $PROJECT"
             xcodebuild \
               -project "$PROJECT" \
               -scheme "AirSync Self Compiled" \
               -configuration Release \
               -derivedDataPath build \
-              MACOSX_DEPLOYMENT_TARGET=15.0 \
               CODE_SIGNING_ALLOWED=NO \
               CODE_SIGNING_REQUIRED=NO \
-              CODE_SIGN_IDENTITY="" \
-              ASSETCATALOG_COMPILER_SKIP_APP_STORE_DEPLOYMENT=YES \
               build
           fi
 
-      - name: Locate Built App
-        run: |
-          APP_PATH=$(find build -name "AirSync.app" -type d | head -n 1)
-          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
-
-      - name: Zip App
-        run: |
-          cd "$(dirname "$APP_PATH")"
-          zip -r AirSync-Mac.zip AirSync.app
-          mv AirSync-Mac.zip $GITHUB_WORKSPACE
-
-      - name: Publish Release
-        uses: softprops/action-gh-release@v2
+      - name: Upload App
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: auto-build
-          name: AirSync Auto Build
-          files: AirSync-Mac.zip
+          name: AirSync
+          path: build/Build/Products/Release/AirSync.app
