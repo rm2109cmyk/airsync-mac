@@ -11,44 +11,39 @@ jobs:
       - name: Resolve Dependencies
         run: xcodebuild -resolvePackageDependencies
 
-      - name: Build App (The Final Fix)
+      - name: Build App
         run: |
-          FILE=$(ls -d *.xcodeproj 2>/dev/null | head -n 1)
-          
-          xcodebuild -project "$FILE" \
+          # 1. We use the correct scheme name found in your project
+          xcodebuild -project AirSync.xcodeproj \
             -scheme "AirSync Self Compiled" \
             -configuration Release \
             -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            AD_HOC_CODE_SIGN_ALLOWED=YES \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
             CODE_SIGN_IDENTITY="" \
             OTHER_SWIFT_FLAGS="-D SELF_COMPILED" \
-            GCC_PREPROCESSOR_DEFINITIONS='$(inherited) SELF_COMPILED=1' \
-            -destination 'platform=macOS' \
-            | xcpretty || true 
-            # Note: The '|| true' is a safety net, but we will check the file existence next
+            -destination 'platform=macOS'
 
-      - name: Verify and Zip
+      - name: Bundle and Zip
         run: |
-          # This finds the app even if the build 'technically' reported a minor error
+          # 2. Find the app and zip it up
           APP_PATH=$(find build/Build/Products/Release -name "AirSync.app" -type d | head -n 1)
-          if [ -z "$APP_PATH" ]; then 
-            echo "Searching deeper..."
+          if [ -z "$APP_PATH" ]; then
+            echo "App not found in standard path, searching everywhere..."
             APP_PATH=$(find build -name "AirSync.app" -type d | head -n 1)
           fi
           
           if [ -n "$APP_PATH" ]; then
-            echo "Found app at $APP_PATH. Zipping..."
             cd "$(dirname "$APP_PATH")"
-            zip -r ../../../AirSync-Mac-Plus.zip AirSync.app
+            zip -r ../../../AirSync-Mac-Plus-Update.zip AirSync.app
           else
-            echo "Build truly failed - App file not found."
+            echo "Build failed - .app file was never created."
             exit 1
           fi
 
-      - name: Upload Artifact
+      - name: Upload Finished App
         uses: actions/upload-artifact@v4
         with:
-          name: AirSync-Mac-Plus
-          path: AirSync-Mac-Plus.zip
+          name: AirSync-Mac-Plus-Update
+          path: AirSync-Mac-Plus-Update.zip
