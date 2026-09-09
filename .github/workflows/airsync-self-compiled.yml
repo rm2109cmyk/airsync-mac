@@ -16,6 +16,35 @@ jobs:
           xcodebuild -version
           xcode-select -p
 
+      - name: Prepare project for CI
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          project = Path("AirSync.xcodeproj/project.pbxproj")
+          text = project.read_text()
+
+          lines_to_remove = [
+              'B99B04C62F641E1400FF3E2D /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = B99B04C52F641E1400FF3E2D /* AppIcon.icon */; };',
+              'B99B04C52F641E1400FF3E2D /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };',
+              'B99B04C52F641E1400FF3E2D /* AppIcon.icon */,',
+              'B99B04C62F641E1400FF3E2D /* AppIcon.icon in Resources */,',
+          ]
+
+          for line in lines_to_remove:
+              text = text.replace("\t" + line + "\n", "")
+              text = text.replace(line + "\n", "")
+
+          project.write_text(text)
+          PY
+
+          echo "Remaining AppIcon.icon references:"
+          if grep -n "AppIcon.icon" AirSync.xcodeproj/project.pbxproj; then
+            true
+          else
+            echo "None"
+          fi
+
       - name: Resolve Swift packages
         run: |
           xcodebuild \
@@ -34,7 +63,8 @@ jobs:
             -archivePath "$PWD/build/AirSync.xcarchive" \
             archive \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO \
+            ASSETCATALOG_COMPILER_APPICON_NAME=
 
       - name: Locate app
         run: |
@@ -50,21 +80,11 @@ jobs:
           echo "Found AirSync.app:"
           ls -la "$APP"
 
-      - name: Ad-hoc sign app
+      - name: Ad-hoc sign AirSync
         run: |
           APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
 
-          echo "Signing nested code..."
-          find "$APP" -type f \( \
-            -name "*.dylib" -o \
-            -name "*.framework" \
-          \) -print0 | while IFS= read -r -d '' item; do
-            if file "$item" | grep -q "Mach-O"; then
-              codesign --force --sign - "$item" || true
-            fi
-          done
-
-          echo "Signing AirSync.app..."
+          echo "Signing AirSync.app ad-hoc..."
           codesign \
             --force \
             --deep \
@@ -84,9 +104,14 @@ jobs:
 
           echo "Code signature verification succeeded."
 
-      - name: Upload AirSync.app
+      - name: Package app
+        run: |
+          cd build/AirSync.xcarchive/Products/Applications
+          ditto -c -k --keepParent AirSync.app "$GITHUB_WORKSPACE/build/AirSync-Self-Compiled.zip"
+
+      - name: Upload AirSync
         uses: actions/upload-artifact@v4
         with:
           name: AirSync-Self-Compiled
-          path: build/AirSync.xcarchive/Products/Applications/AirSync.app
+          path: build/AirSync-Self-Compiled.zip
           retention-days: 7
