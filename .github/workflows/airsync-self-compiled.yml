@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-26
 
     steps:
       - name: Checkout
@@ -33,10 +33,8 @@ jobs:
             -destination "generic/platform=macOS" \
             -archivePath "$PWD/build/AirSync.xcarchive" \
             archive \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY=- \
-            DEVELOPMENT_TEAM= \
-            PROVISIONING_PROFILE_SPECIFIER=
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
 
       - name: Locate app
         run: |
@@ -44,17 +42,47 @@ jobs:
 
           if [ ! -d "$APP" ]; then
             echo "AirSync.app was not produced."
-            find build -maxdepth 6 -print
+            echo "Archive contents:"
+            find build -maxdepth 8 -print
             exit 1
           fi
 
-          echo "Found:"
+          echo "Found AirSync.app:"
           ls -la "$APP"
+
+      - name: Ad-hoc sign app
+        run: |
+          APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
+
+          echo "Signing nested code..."
+          find "$APP" -type f \( \
+            -name "*.dylib" -o \
+            -name "*.framework" \
+          \) -print0 | while IFS= read -r -d '' item; do
+            if file "$item" | grep -q "Mach-O"; then
+              codesign --force --sign - "$item" || true
+            fi
+          done
+
+          echo "Signing AirSync.app..."
+          codesign \
+            --force \
+            --deep \
+            --sign - \
+            "$APP"
 
       - name: Verify code signature
         run: |
-          codesign --verify --deep --strict --verbose=2 \
-            "build/AirSync.xcarchive/Products/Applications/AirSync.app"
+          APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
+
+          codesign \
+            --verify \
+            --deep \
+            --strict \
+            --verbose=2 \
+            "$APP"
+
+          echo "Code signature verification succeeded."
 
       - name: Upload AirSync.app
         uses: actions/upload-artifact@v4
