@@ -1,0 +1,64 @@
+name: Build AirSync Self Compiled
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: |
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild \
+            -project AirSync.xcodeproj \
+            -scheme "AirSync Self Compiled" \
+            -resolvePackageDependencies
+
+      - name: Archive AirSync
+        run: |
+          mkdir -p build
+
+          xcodebuild \
+            -project AirSync.xcodeproj \
+            -scheme "AirSync Self Compiled" \
+            -destination "generic/platform=macOS" \
+            -archivePath "$PWD/build/AirSync.xcarchive" \
+            archive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            PROVISIONING_PROFILE_SPECIFIER=
+
+      - name: Locate app
+        run: |
+          APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
+
+          if [ ! -d "$APP" ]; then
+            echo "AirSync.app was not produced."
+            find build -maxdepth 6 -print
+            exit 1
+          fi
+
+          echo "Found:"
+          ls -la "$APP"
+
+      - name: Verify code signature
+        run: |
+          codesign --verify --deep --strict --verbose=2 \
+            "build/AirSync.xcarchive/Products/Applications/AirSync.app"
+
+      - name: Upload AirSync.app
+        uses: actions/upload-artifact@v4
+        with:
+          name: AirSync-Self-Compiled
+          path: build/AirSync.xcarchive/Products/Applications/AirSync.app
+          retention-days: 7
