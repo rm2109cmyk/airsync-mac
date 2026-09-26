@@ -17,6 +17,49 @@ jobs:
           xcodebuild -version
           xcode-select -p
 
+      - name: Prepare Icon Composer asset for CI
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import json
+          import sys
+
+          icon_json = Path("AppIcon.icon/icon.json")
+
+          if not icon_json.is_file():
+              print(f"ERROR: {icon_json} was not found.")
+              sys.exit(1)
+
+          data = json.loads(icon_json.read_text(encoding="utf-8"))
+
+          print("Original top-level features:")
+          print(data.get("features", "<none>"))
+
+          if "features" not in data:
+              print("No top-level 'features' key found; nothing to change.")
+          else:
+              removed = data.pop("features")
+              print("Removed top-level features:")
+              print(removed)
+
+              icon_json.write_text(
+                  json.dumps(data, indent=2, ensure_ascii=False) + "\n",
+                  encoding="utf-8"
+              )
+
+          check = json.loads(icon_json.read_text(encoding="utf-8"))
+
+          if "features" in check:
+              print("ERROR: top-level 'features' key is still present.")
+              sys.exit(1)
+
+          print("Verified: top-level 'features' key has been removed.")
+          PY
+
+          echo
+          echo "Resulting AppIcon.icon/icon.json:"
+          cat AppIcon.icon/icon.json
+
       - name: Resolve Swift packages
         run: |
           xcodebuild \
