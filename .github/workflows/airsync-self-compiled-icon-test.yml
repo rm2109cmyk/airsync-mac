@@ -11,8 +11,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show Xcode version
+      - name: Select Xcode 26.4.1
         run: |
+          sudo xcode-select -s "/Applications/Xcode_26.4.1.app"
           xcodebuild -version
           xcode-select -p
 
@@ -59,6 +60,7 @@ jobs:
 
           echo
           echo "=== Info.plist icon settings ==="
+
           /usr/libexec/PlistBuddy \
             -c "Print :CFBundleIconName" \
             "$APP/Contents/Info.plist" || true
@@ -72,6 +74,7 @@ jobs:
           APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
 
           echo "Signing AirSync.app ad-hoc..."
+
           codesign \
             --force \
             --deep \
@@ -95,7 +98,10 @@ jobs:
         run: |
           cd build/AirSync.xcarchive/Products/Applications
 
-          ditto -c -k --keepParent \
+          ditto \
+            -c \
+            -k \
+            --keepParent \
             AirSync.app \
             "$GITHUB_WORKSPACE/build/AirSync-Self-Compiled-Icon.zip"
 
