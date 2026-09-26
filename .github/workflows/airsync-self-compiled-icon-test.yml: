@@ -1,4 +1,4 @@
-name: Build AirSync Self Compiled - Icon Test
+name: Build AirSync Self Compiled - Glass Icon Testing
 
 on:
   workflow_dispatch:
