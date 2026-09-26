@@ -1,0 +1,107 @@
+name: Build AirSync Self Compiled - Icon Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: |
+          xcodebuild -version
+          xcode-select -p
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild \
+            -project AirSync.xcodeproj \
+            -scheme "AirSync Self Compiled" \
+            -resolvePackageDependencies
+
+      - name: Archive AirSync
+        run: |
+          mkdir -p build
+
+          xcodebuild \
+            -project AirSync.xcodeproj \
+            -scheme "AirSync Self Compiled" \
+            -destination "generic/platform=macOS" \
+            -archivePath "$PWD/build/AirSync.xcarchive" \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Locate app
+        run: |
+          APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
+
+          if [ ! -d "$APP" ]; then
+            echo "AirSync.app was not produced."
+            echo "Archive contents:"
+            find build -maxdepth 8 -print
+            exit 1
+          fi
+
+          echo "Found AirSync.app:"
+          ls -la "$APP"
+
+      - name: Inspect icon output
+        run: |
+          APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
+
+          echo "=== Resources ==="
+          find "$APP/Contents/Resources" -maxdepth 2 -print | sort
+
+          echo
+          echo "=== Info.plist icon settings ==="
+          /usr/libexec/PlistBuddy \
+            -c "Print :CFBundleIconName" \
+            "$APP/Contents/Info.plist" || true
+
+          /usr/libexec/PlistBuddy \
+            -c "Print :CFBundleIconFile" \
+            "$APP/Contents/Info.plist" || true
+
+      - name: Ad-hoc sign AirSync
+        run: |
+          APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
+
+          echo "Signing AirSync.app ad-hoc..."
+          codesign \
+            --force \
+            --deep \
+            --sign - \
+            "$APP"
+
+      - name: Verify code signature
+        run: |
+          APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
+
+          codesign \
+            --verify \
+            --deep \
+            --strict \
+            --verbose=2 \
+            "$APP"
+
+          echo "Code signature verification succeeded."
+
+      - name: Package app
+        run: |
+          cd build/AirSync.xcarchive/Products/Applications
+
+          ditto -c -k --keepParent \
+            AirSync.app \
+            "$GITHUB_WORKSPACE/build/AirSync-Self-Compiled-Icon.zip"
+
+      - name: Upload AirSync
+        uses: actions/upload-artifact@v4
+        with:
+          name: AirSync-Self-Compiled-Icon
+          path: build/AirSync-Self-Compiled-Icon.zip
+          retention-days: 7
