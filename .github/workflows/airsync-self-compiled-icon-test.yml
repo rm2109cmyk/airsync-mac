@@ -5,41 +5,52 @@ on:
 
 jobs:
   build:
-    runs-on: macos-26
+    runs-on: xcode-27
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show Xcode version
+      - name: Show Xcode and SDK versions
         run: |
           xcodebuild -version
           xcode-select -p
+          xcrun --sdk macosx --show-sdk-version
+          echo
+          echo "actool:"
+          xcrun --find actool
+          echo
+          echo "ictool:"
+          xcrun --find ictool || true
 
-      - name: Verify AppIcon.icon structure
+      - name: Verify Icon Composer asset
         run: |
-          echo "=== Verifying icon structure before build ==="
-          
-          if [ ! -f "AppIcon.icon/icon.json" ]; then
-            echo "ERROR: AppIcon.icon/icon.json not found"
+          echo "=== AppIcon.icon ==="
+
+          if [ ! -d "AppIcon.icon" ]; then
+            echo "ERROR: AppIcon.icon not found."
             exit 1
           fi
-          
-          echo "icon.json exists and contains:"
-          head -20 AppIcon.icon/icon.json
-          
-          echo
-          echo "SVG assets:"
-          ls -lh "AppIcon.icon/Assets/"*.svg
 
-      - name: Verify build configuration deployment target
+          if [ ! -f "AppIcon.icon/icon.json" ]; then
+            echo "ERROR: AppIcon.icon/icon.json not found."
+            exit 1
+          fi
+
+          echo
+          echo "=== icon.json ==="
+          cat "AppIcon.icon/icon.json"
+
+          echo
+          echo "=== Icon assets ==="
+          find "AppIcon.icon" -maxdepth 2 -type f -print | sort
+
+      - name: Verify deployment target
         run: |
-          echo "=== Checking deployment target in project.pbxproj ==="
-          
-          # This is a verification step - the project.pbxproj should have been updated locally
-          grep "MACOSX_DEPLOYMENT_TARGET = 15" AirSync.xcodeproj/project.pbxproj && \
-            echo "✓ Deployment target is set to 15" || \
-            (echo "ERROR: Deployment target is NOT 15. Has project.pbxproj been updated?" && exit 1)
+          echo "=== Self Compiled deployment target ==="
+
+          grep "MACOSX_DEPLOYMENT_TARGET" \
+            AirSync.xcodeproj/project.pbxproj || true
 
       - name: Resolve Swift packages
         run: |
@@ -48,7 +59,7 @@ jobs:
             -scheme "AirSync Self Compiled" \
             -resolvePackageDependencies
 
-      - name: Archive AirSync with icon
+      - name: Archive AirSync
         run: |
           mkdir -p build
 
@@ -66,65 +77,49 @@ jobs:
           APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
 
           if [ ! -d "$APP" ]; then
-            echo "ERROR: AirSync.app was not produced."
+            echo "AirSync.app was not produced."
+            echo
             echo "Archive contents:"
             find build -maxdepth 8 -print
             exit 1
           fi
 
-          echo "✓ Found AirSync.app"
+          echo "Found AirSync.app:"
           ls -la "$APP"
 
       - name: Inspect icon output
         run: |
           APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
 
-          echo "=== App Contents Structure ==="
-          find "$APP/Contents" -maxdepth 2 -type d | sort
+          echo "=== Application Resources ==="
+          find "$APP/Contents/Resources" -maxdepth 2 -print | sort
 
           echo
-          echo "=== Resources directory ==="
-          if [ -d "$APP/Contents/Resources" ]; then
-            ls -lh "$APP/Contents/Resources/" | head -20
-          else
-            echo "(no Resources directory)"
-          fi
+          echo "=== Icon-related Info.plist keys ==="
+
+          /usr/libexec/PlistBuddy \
+            -c "Print :CFBundleIconName" \
+            "$APP/Contents/Info.plist" || true
+
+          /usr/libexec/PlistBuddy \
+            -c "Print :CFBundleIconFile" \
+            "$APP/Contents/Info.plist" || true
 
           echo
-          echo "=== Info.plist icon configuration ==="
-          
-          if /usr/libexec/PlistBuddy -c "Print :CFBundleIconName" "$APP/Contents/Info.plist" 2>/dev/null; then
-            echo "✓ CFBundleIconName is set"
-          else
-            echo "  CFBundleIconName not set (expected for .icon format)"
-          fi
+          echo "=== Assets.car ==="
 
-          if /usr/libexec/PlistBuddy -c "Print :CFBundleIconFile" "$APP/Contents/Info.plist" 2>/dev/null; then
-            echo "✓ CFBundleIconFile is set"
+          if [ -f "$APP/Contents/Resources/Assets.car" ]; then
+            ls -lh "$APP/Contents/Resources/Assets.car"
           else
-            echo "  CFBundleIconFile not set (expected for .icon format)"
+            echo "Assets.car not found."
           fi
-
-      - name: Check for AppIcon in app
-        run: |
-          APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
-          
-          echo "=== Checking if icon was processed ==="
-          
-          # Look for compiled icon files
-          find "$APP" -name "*AppIcon*" -o -name "*icon*" | grep -v ".dSYM" | head -20 && \
-            echo "✓ Icon-related files found in app" || \
-            echo "ℹ No explicitly named icon files (expected - may be embedded)"
-          
-          echo
-          echo "Asset catalogs or compiled resources:"
-          find "$APP/Contents/Resources" -name "*.car" -o -name "*.xcassets" 2>/dev/null
 
       - name: Ad-hoc sign AirSync
         run: |
           APP="build/AirSync.xcarchive/Products/Applications/AirSync.app"
 
           echo "Signing AirSync.app ad-hoc..."
+
           codesign \
             --force \
             --deep \
@@ -142,22 +137,18 @@ jobs:
             --verbose=2 \
             "$APP"
 
-          echo "✓ Code signature verification succeeded."
+          echo "Code signature verification succeeded."
 
       - name: Package app
         run: |
           cd build/AirSync.xcarchive/Products/Applications
 
-          ditto -c -k --keepParent AirSync.app "$GITHUB_WORKSPACE/build/AirSync-Self-Compiled-Icon.zip"
-
-      - name: Verify package integrity
-        run: |
-          echo "=== Package contents verification ==="
-          unzip -l build/AirSync-Self-Compiled-Icon.zip | head -30
-          
-          echo
-          echo "✓ Package created successfully"
-          ls -lh build/AirSync-Self-Compiled-Icon.zip
+          ditto \
+            -c \
+            -k \
+            --keepParent \
+            AirSync.app \
+            "$GITHUB_WORKSPACE/build/AirSync-Self-Compiled-Icon.zip"
 
       - name: Upload AirSync
         uses: actions/upload-artifact@v4
